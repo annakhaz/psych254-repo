@@ -1,6 +1,6 @@
 ---
 title: 'Psych 254 W15 PS #1'
-author: "Mike Frank"
+author: "Mike Frank %>% Anna Khazenzon"
 date: "January 11, 2015"
 output: html_document
 ---
@@ -19,7 +19,7 @@ Preliminaries
 
 I pretty much always clear the workspace and load the same basic helper functions before starting an analysis.
 
-```{r prelims}
+```{r prelims, echo=FALSE, warning=FALSE, message=FALSE }
 rm(list=ls())
 source("../helper/useful.R")
 ```
@@ -41,7 +41,33 @@ HINT: try computing some summary statistics for the different items. Also, are t
 
 Fix the data file so that it looks reasonable.
 
+```{r clean data1}
+# problems:
+# *extraneous variables
+# *dup'd participants
+# *commas
+# *numbers as factors
 
+# fixes
+# *cast vars as correct form, realize it means something's up
+# *string manipulation
+
+# remove commas in prices >= 1000
+d$Input.price1 <- as.numeric(gsub(",","",d$Input.price1))
+d$Input.price2 <- as.numeric(gsub(",","",d$Input.price2))
+
+# clean dog cost answer
+d$Answer.dog_cost[57] <- 500
+d$Answer.dog_cost <- as.numeric(gsub(",","",d$Answer.dog_cost))
+
+# check for characters/strings in numeric cols
+# get same decimal place? or is that part of the "precise under anchor" condition
+# check typos
+
+# MF suggests doing this kind of task in excel, rather than programmatically
+# don't want to have to keep guessing/checking what's going on
+# use visual skill to assess -- no single test will tell you that a variable is messed up
+```
 
 Part 2: Making these data tidy
 ------------------------------
@@ -59,7 +85,7 @@ To make this data tidy, we'll do some cleanup. First, remove the columns you don
 HINT: `?select` and the examples of helper functions will help you be efficient.
 
 ```{r select}
-d.tidy <- select(...)
+d.tidy <- select(d, WorkerId, starts_with("Input."),starts_with("Answer.plasma"),starts_with("Answer.dog"),starts_with("Answer.sushi"))
 ```
 
 
@@ -72,7 +98,8 @@ Try renaming some variables using `rename`. A good naming scheme is:
 Try using the `%>%` operator as well. So you will be "piping" `d %>% rename(...)`.
 
 ```{r rename}
-d.tidy <- ...
+d.tidy <- d.tidy %>% 
+  rename(id = WorkerId, dog_cost = Answer.dog_cost,  plasma_cost = Answer.plasma_cost,  sushi_cost = Answer.sushi_cost,  cond = Input.condition, plasma_price = Input.price1 ,  dog_price = Input.price2,  sushi_price = Input.price3)
 ```
 
 
@@ -81,14 +108,28 @@ OK, now for the tricky part. Use the verb *gather* to turn this into a *tidy* da
 HINT: look for online examples!
 
 ```{r gather}
-d.tidy <- ...
+d.tidy.g <- d.tidy %>% 
+  unite(plasma, c(plasma_price,plasma_cost), sep="-") %>% 
+  unite(dog, c(dog_price,dog_cost), sep="-") %>% 
+  unite(sushi, c(sushi_price,sushi_cost), sep="-") %>% 
+  gather(item, amount, -id, -cond) %>% 
+  separate(amount, c("price","cost"), sep="-")
+
+d.tidy.g$cost <- as.numeric(d.tidy.g$cost, na.rm=TRUE)
+d.tidy.g$price <- as.numeric(d.tidy.g$price)
+
 ```
 
 
 Bonus problem: *spread* these data back into a wide format data frame.
 
 ```{r spread}
-d.wide <- ...
+d.wide <- d.tidy.g %>% 
+  unite(amount, c(price, cost), sep="-") %>% 
+  spread(item, amount) %>% 
+  separate(plasma, c("plasma_price","plasma_cost"), sep="-") %>% 
+  separate(dog, c("dog_price","dog_cost"), sep="-") %>% 
+  separate(sushi, c("sushi_price","sushi_cost"), sep="-")
 ```
 
 
@@ -99,49 +140,54 @@ Try also using the dplyr `distinct` function to remove the duplicate participant
 
 ```{r}
 d.raw <- read.csv("../data/janiszewski_rep_exercise.csv")
-d.unique.subs <- ...
+d.unique.subs <- distinct(d.raw, WorkerId) #87 distinct IDs
 ```
 
 As we said in class, a good thing to do is always to check histograms of the response variable. Do that now, using either regular base graphics or ggplot. What can you conclude? 
 
 ```{r}
+ggplot(d.tidy.g, aes(x=cost, fill=cond)) + geom_histogram(stat="bin", position="dodge") + facet_grid(. ~item)
+
 ```
+
+From our histograms we conclude that there appear to be outliers in the costs for both the plasma and dog items. 
+
 
 OK, now we turn to the actual data anlysis. We'll be using dplyr verbs to `filter`, `group`,`mutate`, and `summarise` the data.
 
 Start by using `summarise` on `d.tidy` to compute the mean bet across all participants. Note that this is simply taking the grand mean. Ultimately, we would like to compute the mean for different conditions and items, but this will come later. Right now we're just learning the syntax of `summarise`.
 
 ```{r}
-...
+summarise(d.tidy.g, grand=mean(cost, na.rm=TRUE))
 ```
 
 This is a great time to get comfortable with the `%>%` operator. In brief, `%>%` allows you to pipe data from one function to another. So if you would have written:
 
 ```{r}
-d <- function(d, other_stuff)
+#d <- function(d, other_stuff)
 ```
   
 you can now write:
 
 ```{r}
-d <- d %>% function(other_stufF)
+#d <- d %>% function(other_stufF)
 ```
 
 That doesn't seem like much, but it's cool when you can replace:
 
 ```{r}
-d <- function1(d, other_stuff)
-d <- function2(d, lots_of_other_stuff, more_stuff)
-d <- function3(d, yet_more_stuff)
+#d <- function1(d, other_stuff)
+#d <- function2(d, lots_of_other_stuff, more_stuff)
+#d <- function3(d, yet_more_stuff)
 ```
 
 with
 
 ```{r}
-d <- d %>% 
-  function1(other_stuff) %>%
-  function2(lots_of_other_stuff, more_stuff) %>%
-  function3(yet_more_stuff)
+#d <- d %>% 
+#  function1(other_stuff) %>%
+#  function2(lots_of_other_stuff, more_stuff) %>%
+#  function3(yet_more_stuff)
 ```
 
 In other words, you get to make a clean list of the things you want to do and chain them together without a lot of intermediate assignments. 
@@ -149,7 +195,7 @@ In other words, you get to make a clean list of the things you want to do and ch
 Let's use that capacity to combine `summarise` with `group_by`, which allows us to break up our summary into groups. Try grouping by item and condition and taking means using `summarise`, chaining these two verbs with `%>%`.
 
 ```{r}
-...
+d.tidy.g %>% group_by(item, cond) %>% summarise(m=mean(cost, na.rm=TRUE))
 ```
 
 OK, it's looking like there are maybe some differences between conditions, but how are we going to plot these? They are fundamentally different magnitudes from one another. 
@@ -187,8 +233,9 @@ To do the first, use the `mutate` verb to add a percent change column, then comu
 
 ```{r}
 pcts <- d.tidy %>%
-  mutate(pct_change = ... ) %>%
-  ...
+  mutate(pct_change = abs(1-cost/anchor) ) %>% 
+  group_by(item, condition) %>% 
+  summarise(m=mean(pct_change, na.rm=TRUE)); pcts
 ```
 
 To do the second, you will need to `group` first by item, compute z-scores with respect to items, then further group by condition.
@@ -198,13 +245,18 @@ HINT: `scale(x)` returns a complicated data structure that doesn't play nicely w
 HINT: by default, `group_by` undoes any previous groupings. If you want to add new grouping variables *on top* of pre-existing ones, specify `add = TRUE`, e.g., `d %>% group_by(var1) %>% group_by(var2, add = TRUE)`.
 
 ```{r}
-z.scores <- d.tidy %>% ...
+z.scores <- d.tidy %>% 
+  group_by(item) %>%
+  mutate(z = (cost - mean(cost, na.rm=TRUE))/sd(cost, na.rm=TRUE)) %>% #same output as scale()
+  group_by(condition, add=TRUE) %>%
+  summarise(m=mean(z, na.rm=TRUE)); z.scores
+
 ```
 
 OK, now here comes the end: we're going to plot the differences and see if anything happened. First the percent change:
 
 ```{r}
-qplot(item, pct, fill=condition,
+qplot(item, m, fill=condition,
       position="dodge",
       stat="identity", geom="bar",
       data=pcts)
@@ -213,7 +265,7 @@ qplot(item, pct, fill=condition,
 and the z-scores:
 
 ```{r}
-qplot(item, z, fill=condition,
+qplot(item, m, fill=condition,
       position="dodge",
       stat="identity", geom="bar",
       data=z.scores)
