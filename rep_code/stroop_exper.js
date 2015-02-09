@@ -1,8 +1,14 @@
 $(function(){
   
+  // TODO figure out why fixation and patch still showing up during classic!!! something is wonky.
+  
+  
   var CLASSIC_NUM_TRIALS = 4; //96;
   var WM_NUM_TRIALS = 10; //120;
   var NUM_BLOCKS = 4;
+  
+  var TASK_ORDER = _(['classic', 'wm']).shuffle(); 
+  var num_tasks_run = 0
   
   // [word1, patch, word2, ?, congruency]
   var WM_TRIAL_ITEMS = _([[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,1,1,1],[1,1,3,1,2],[1,1,3,1,2],[1,1,3,1,2],
@@ -18,22 +24,27 @@ $(function(){
   [4,4,2,1,2],[4,4,2,1,2],[4,4,2,1,2],[4,4,1,1,2],[4,4,1,1,2],[4,4,1,1,2],[4,3,4,2,1],[4,3,4,2,1],[4,3,4,2,1],[4,2,4,2,1],
   [4,2,4,2,1],[4,1,4,2,1],[4,1,4,2,1],[4,1,3,2,2],[4,3,1,2,2],[4,3,3,2,2],[4,3,2,2,2],[4,2,1,2,2],[4,2,3,2,2],[4,2,2,2,2]]).shuffle();  
   
+  var COLORS = ['red', 'green', 'blue', 'yellow']
+  
   var initTask = function(task) {
     
     var $instructSlide = $('#init-task');
+    $('#classic-instruct').hide()
+    $('#wm-instruct').hide()
     
     $instructSlide.show()
+    
     if (task === 'classic') {
       $('#classic-instruct').show()
     } else if (task === 'wm') {
       $('#wm-instruct').show()
     }
   
-    $('#start-button').on('click', function() {
-      $instructSlide.css('display', 'none')
+    $('#start-button').on("click", function() {
+      $instructSlide.hide()
       startTrials(task); 
     })
-  };
+  }
   
   var startTrials = function(task) {
     $('.stim').hide()
@@ -47,14 +58,31 @@ $(function(){
   
   var displayWord = function(task, trialsLeft) {
     var $word = $('#word');
-    $word.show()
-    console.log(WM_TRIAL_ITEMS[CLASSIC_NUM_TRIALS-trialsLeft])
-    setTimeout(function() {
-      $word.hide()
-      interTrial(task, trialsLeft)
-    }, 500); // have ITI constant somewhere
+    
+    if (task === 'wm') {
+      $word.text(COLORS[WM_TRIAL_ITEMS[WM_NUM_TRIALS-trialsLeft][0] - 1])
+      $word.show()
+      setTimeout(function() {
+        $word.hide()
+        interTrial(task, trialsLeft) //for testing
+        //interStim('patch', trialsLeft) 
+      }, 500);
+    }
+    
+    if (task === 'classic') {
+      $word.text(COLORS[WM_TRIAL_ITEMS[CLASSIC_NUM_TRIALS-trialsLeft][0] - 1]) //temp; need to make classic trial items
+      $word.css('color',_(COLORS).shuffle()[0])
+      $word.show()
+      setTimeout(function() {
+        $word.hide()
+        interTrial(task, trialsLeft)
+      }, 500);
+    }
+    
+   
     
   }
+  
   var interTrial = function(task, trialsLeft) {
     var $interTrial = $('#intertrial');
     $interTrial.show()
@@ -69,15 +97,37 @@ $(function(){
   }
   
   // WM stroop task only
-  var interStim = function() {
-    // need separate one for ISI2 & 3?
+  var interStim = function(next, trialsLeft) {
+    // between word and patch - 2000ms, or patch and probe - 1000ms
+    var $fix = $('#interstim');
+    $fix.show()
+    if (next === 'patch') {
+      setTimeout(function() {
+        $fix.hide()
+        displayPatch(trialsLeft)
+      }, 2000);
+    } else if (next === 'probe') {
+      setTimeout(function() {
+        $fix.hide()
+        interTrial('wm', trialsLeft) //temp
+        //displayProbe(trialsLeft) //temp
+      }, 1000);
+    }
+   
+  }
+
+  
+  var displayPatch = function(trialsLeft) {
+    var $patch = $('#'.concat(COLORS[WM_TRIAL_ITEMS[WM_NUM_TRIALS-trialsLeft][1] - 1],"-patch"));
+    $patch.show()
+    
+    setTimeout(function() {
+      $patch.hide()
+      interStim('probe', trialsLeft)
+    }, 500);
   }
   
-  var displayPatch = function() {
-    //
-  }
-  
-  var displayWordTest = function() {
+  var displayProbe = function(trialsLeft) {
     //
   }
   
@@ -95,13 +145,17 @@ $(function(){
     displayWord('wm', WM_NUM_TRIALS)
   }
   
-  var finishExper = function() {
-    // if both tasks have been run..
-    $('#finished').show()
+  var finishTask = function() {
+      num_tasks_run ++;
+      $("#stage").hide()
+      if (num_tasks_run === 1) {
+        initTask(TASK_ORDER[1])
+      } else if (num_tasks_run === 2) {
+        $('#finished').show() 
+      }
   }
 
 
-// randomize task order, then init 1 and have other run at end
-  initTask('classic'); 
+  initTask(TASK_ORDER[0]); 
   
 });
