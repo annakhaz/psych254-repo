@@ -250,6 +250,8 @@ ggplot(d, aes(x = age, y = hand.look, color = condition)) + geom_smooth(aes(y = 
 
 What do you conclude from this pattern of data?
 
+From this pattern of data we see that both age and condition predict infants' looking to hands. Older children tend to look more, and children in the more complex condition tend to look more. There is also an interaction showing that age is more significantly predictive of time looking in the complex condition rather than the normal condition.
+
 3: Linear Mixed Effect Models
 =============================
 
@@ -266,6 +268,11 @@ d$age.group <- factor(d$age.group)
 Always begin with a histogram!
 
 ```{r}
+hist(d$age[d$condition == "Label"])
+hist(d$age[d$condition == "No Label"])
+
+hist(d$correct[d$condition == "Label"])
+hist(d$correct[d$condition == "No Label"])
 ```
 
 Brief Confidence Interval Digression
@@ -274,14 +281,22 @@ Brief Confidence Interval Digression
 Start out by setting up a function for a 95% CI using the normal approximation.
 
 ```{r}
+# sample statistic +/- margin of error (critical value * sd/se)
+sem <- function(x) {sd(x) / sqrt(length(x))}
+
 ci95.norm <- function(x) {
+  me <- sem(x) * qnorm(.975)
+  c(mean(x) - me, mean(x) + me)
 }
 ```
 
 But the number of participants in a group is likely to be < 30, so let's also compute this with a t distribution.
 
 ```{r}
+
 ci95.t <- function(x) {
+  me <- sem(x) * qt(.975, length(x)-1)
+  c(mean(x) - me, mean(x) + me)
 }
 ```
 
@@ -314,14 +329,46 @@ Now make 95% confidence intervals across participants using all the methods abov
 - Bootstrap percentile using my code
 
 ```{r}
+prop_label <- sum(d$correct[d$condition == "Label"] == TRUE) / length(d$correct[d$condition == "Label"])
+
+prop_nolabel <- sum(d$correct[d$condition == "No Label"] == TRUE) / length(d$correct[d$condition == "No Label"])
+
+ci95.norm(d$correct[d$condition == "Label"])
+ci95.t(d$correct[d$condition == "Label"])
+
+ci95.norm(d$correct[d$condition == "No Label"])
+ci95.t(d$correct[d$condition == "No Label"])
+
+label.mean = function(answers, i) {
+ mean(answers[i])
+}
+
+# label.prop(d$correct[d$condition == "Label"], d$correct[d$condition == "Label"] == TRUE)
+
+label.out <- boot(data = d$correct[d$condition == "Label"], statistic = label.mean, R=999)
+
+boot.ci(label.out, conf = .95)
+
+theta(xdata = d$correct, x = d$condition == "Label")
+ci.low(d$correct[d$condition == "Label"])
+ci.high(d$correct[d$condition == "Label"])
 ```
 
 Now plot the data by age and condition using `dplyr` and `ggplot2`. Plot some CIs on here - extra credit if you plot all of them and compare visually (you'll need `position = position_dodge()` or some other way to offset them).  
 
 ```{r}
+grouped <- d %>% group_by(age.group, condition) %>%
+  summarise(m = mean(correct), ci.lo = ci95.t(correct)[1], ci.hi = ci95.t(correct)[2])
+
+limits <- aes(ymax = ci.hi, ymin = ci.lo)
+
+ggplot(grouped, aes(x = condition, y = m, fill = age.group)) + geom_bar(stat="identity", position="dodge") + geom_errorbar(limits, position=position_dodge(width=.9), width=0.25) + theme_bw()
+
 ```
 
 What do you conclude about confidence interval computation?
+
+For a fairly large n, using the normal approximation, t approximation, and bootstrapping yields similar confidence intervals. 
 
 Back to LMEMs
 -------------
