@@ -10,6 +10,7 @@ This is problem set #3, in which we want you to integrate your knowledge of data
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(boot)
 ```
 
 Part 1: Basic simulation and NHST
@@ -49,15 +50,15 @@ First, write a function that implements this sampling regime.
 
 ```{r}
 double.sample <- function(n) {
-  d <- rnorm(n, mean = .5, sd = .5)
-  result <- t.test(d, mu = .5)
+  d <- rnorm(n)
+  result <- t.test(d)
   if (result$p.value < .05) {
     return('Significant')
   } else if (result$p.value > .25) {
     return('Not significant')
   } else {
-    d2 <- rnorm(n, mean = .5, sd = .5)
-    result <- t.test(c(d, d2), mu = .5)
+    d2 <- rnorm(n)
+    result <- t.test(c(d, d2))
     if (result$p.value < .05) {
       return('Significant')
     } else {
@@ -88,15 +89,15 @@ HINT 2: You may need more samples. Find out by looking at how the results change
 
 ```{r}
 double.sample <- function(n, upper_p) {
-  d <- rnorm(n, mean = .5, sd = .5)
-  result <- t.test(d, mu = .5)
+  d <- rnorm(n)
+  result <- t.test(d)
   if (result$p.value < .05) {
     return('Significant')
   } else if (result$p.value > upper_p) {
     return('Not significant')
   } else {
-    d2 <- rnorm(n, mean = .5, sd = .5)
-    result <- t.test(c(d, d2), mu = .5)
+    d2 <- rnorm(n)
+    result <- t.test(c(d, d2))
     if (result$p.value < .05) {
       return('Significant')
     } else {
@@ -121,7 +122,7 @@ false_pos_rate_50 = sig_50/10000; false_pos_rate_50
 
 What do you conclude on the basis of this simulation? How bad is this kind of data-dependent policy?
 
-This data-dependent policy is dangerous. Even if your results appear to approach significance (ie you have a p < .25), p-sniffing greatly increases the false positive rate, almost as much as if your results were not approaching significance. The elevated rates when rerunning all nonsignificant results is not that much different from the false positive rate from rerunning the analysis when you have a p < .25.
+This data-dependent policy is dangerous. Even if your results appear to approach significance (ie you have a p < .25), p-sniffing greatly increases the false positive rate, almost as much as if your results were not approaching significance (the false positive rate would remain at roughly .08 whether you have a p < .5 or a p < 1). The elevated rates when rerunning all nonsignificant results is not that much different from the false positive rate from rerunning the analysis when you have a p < .25.
 
 Part 2: The Linear Model
 ========================
@@ -150,7 +151,7 @@ Now make a linear model of tooth lengths using `lm`. Try making one with main ef
 
 ```{r}
 rs_main_effects <- lm(len ~ dose + supp, ToothGrowth)
-summary(rs_main_effect)
+summary(rs_main_effects)
 
 rs_interaction <- lm(len ~ dose * supp, ToothGrowth)
 summary(rs_interaction)
@@ -261,7 +262,8 @@ standard by subject, by item LMs, as well as the standard (no repeated measures)
 The dataset here is from Stiller, Goodman, & Frank (2014), a paper on children's pragmatic inferences. We saw the paradigm in the counterbalancing lecture: it's three faces: a smiley, a smiley with glasses, and a smiley with a hat and glasses. When told "my friend has glasses" do kids pick the one with the glasses and no hat? `age.group` is the kids' age group, `condition` is either "label," described above, or "no label," which was a control condition in which kids picked without hearing the term "glasses" at all. 
 
 ```{r}
-d <- read.csv("../data/scales.csv")
+library(lme4)
+d <- read.csv("/Users/annakhazenzon/Documents/courses/psych254/psych254_materials/data/scales.csv")
 d$age.group <- factor(d$age.group)
 ```
 
@@ -312,13 +314,13 @@ Take a look at `?boot` and `?bootci`. Note that the syntax for the `boot` librar
 ```{r}
 theta <- function(x,xdata,na.rm=T) {mean(xdata[x],na.rm=na.rm)}
 ci.low <- function(x,na.rm=T) {
-  mean(x,na.rm=na.rm) - 
+  #mean(x,na.rm=na.rm) - 
     quantile(bootstrap(1:length(x),
                        10000,theta,x,na.rm=na.rm)$thetastar,.025,na.rm=na.rm)}
 ci.high <- function(x,na.rm=T) {
   quantile(bootstrap(1:length(x),
-                     10000,theta,x,na.rm=na.rm)$thetastar,.975,na.rm=na.rm) - 
-    mean(x,na.rm=na.rm)}
+                     10000,theta,x,na.rm=na.rm)$thetastar,.975,na.rm=na.rm)}
+  #- mean(x,na.rm=na.rm)}
 ```
 
 Now make 95% confidence intervals across participants using all the methods above:
@@ -329,29 +331,20 @@ Now make 95% confidence intervals across participants using all the methods abov
 - Bootstrap percentile using my code
 
 ```{r}
-prop_label <- sum(d$correct[d$condition == "Label"] == TRUE) / length(d$correct[d$condition == "Label"])
+ci95.norm(d$correct)
+ci95.t(d$correct)
 
-prop_nolabel <- sum(d$correct[d$condition == "No Label"] == TRUE) / length(d$correct[d$condition == "No Label"])
 
-ci95.norm(d$correct[d$condition == "Label"])
-ci95.t(d$correct[d$condition == "Label"])
-
-ci95.norm(d$correct[d$condition == "No Label"])
-ci95.t(d$correct[d$condition == "No Label"])
-
-label.mean = function(answers, i) {
+mean.fun = function(answers, i) {
  mean(answers[i])
 }
 
-# label.prop(d$correct[d$condition == "Label"], d$correct[d$condition == "Label"] == TRUE)
+out <- boot(data = d$correct, statistic = mean.fun, R=999)
 
-label.out <- boot(data = d$correct[d$condition == "Label"], statistic = label.mean, R=999)
+boot.ci(out, conf = .95)
 
-boot.ci(label.out, conf = .95)
-
-theta(xdata = d$correct, x = d$condition == "Label")
-ci.low(d$correct[d$condition == "Label"])
-ci.high(d$correct[d$condition == "Label"])
+ci.low(d$correct)
+ci.high(d$correct)
 ```
 
 Now plot the data by age and condition using `dplyr` and `ggplot2`. Plot some CIs on here - extra credit if you plot all of them and compare visually (you'll need `position = position_dodge()` or some other way to offset them).  
@@ -382,11 +375,22 @@ OK, now do a basic GLM over the entire data frame, using `age.group`, `condition
 NOTE: this model is not appropriate, because it assumes that each subject's observations are independent from one another. It's still fine to do the analysis, though: it can tell you a lot about the data and is easy and fast to fit, as long as you know that you can't trust the p-values!
 
 ```{r}
+rs <- glm(correct ~ age.group * condition, d, family = "binomial")
+summary(rs)
 ```
 
 Let's now use `dplyr` to get data frames for by-items (`msi`) and by-subjects (`mss`) analyses. `msi` should contain the mean ratings for every item and `mss` should contain the mean ratings for every subject.
 
 ```{r}
+
+msi <- d %>% 
+  group_by(trial, condition) %>%
+  summarise(m = mean(correct))
+
+mss <- d %>%
+  group_by(subid) %>%
+  summarise(m = mean(correct)) %>%
+  inner_join(d[,c("subid", "age.group")], by = "subid")
 ```
 
 Now do standard linear models on each of these.
@@ -394,11 +398,21 @@ Now do standard linear models on each of these.
 NOTE: These are not strictly correct either because of the normal approximation on percent correct (model doesn't know it's 0 - 1 bounded and could give you standard error that goes above 1). Again, useful to do and see what happens.
 
 ```{r}
+rs1 <- lm(m ~ trial + condition, msi)
+summary(rs1)
+
+rs2 <- lm(m ~ as.numeric(subid) + age.group, mss) # subject ID is not a meaningful var
+summary(rs2)
 ```
 
 Do ANOVA on these. Note that ANOVA doesn't let you figure out what is going on with individual levels of age.
 
 ```{r}
+rs1 <- aov(m ~ trial + condition, msi)
+summary(rs1)
+
+rs2 <- aov(m ~ subid + age.group, mss)
+summary(rs2)
 ```
 
 On to linear mixed effect models. Create the maximal random effects model a la Barr et al. (2013). Does it converge? If not, what will you do to make it converge? (The internet can be your friend here).
@@ -409,21 +423,50 @@ HINT: make sure that you consider which random effects are appropriate. Consider
 
 
 ```{r}
+max_rs <- glmer(correct ~ subid * age.group * trial * condition * (condition + trial + age.group | subid), d, family = "binomial")
+
+submax_rs <- glmer(correct ~ age.group + trial + condition + (trial | subid), d, family = "binomial")
+summary(submax_rs)
+
+indep_coeff_rs <- glm(correct ~ age.group + condition + trial, d, family = "binomial")
+summary(indep_coeff_rs)
 ```
 
 How do these coefficients compare with the independent coefficients linear model? What do you conclude?
 
+The coefficients do not differ greatly between the two models. The random effects of item type must not explain much of the variance.
+
 Which random effects make the most difference? Find out using `ranef`. Plot the random effects for subject and item.
 
 ```{r}
+diag(var(ranef(submax_rs)$subid[1:4]))
+
+library(sjPlot)
+sjp.lmer(submax_rs)
 ```
+
+House items appear to have the largest random slope.
 
 Make the minimal random effects model with just a subject intecept. How does this compare?
 
 ```{r}
+min_rs <- glmer(correct ~ 1 + (1 | subid), d, family = "binomial")
+summary(min_rs)
+sjp.lmer(min_rs)
 ```
+
+The random effects of subject ID explain a lot more of the variance now that there are no other predictors in the model.
 
 Get an estimate of the significance value for the coefficient on the `age*condition` interaction by using anova to compare between your semi-maximal model and the model without an intercept.
 
 ```{r}
+semi_max_intrxn <- glmer(correct ~ trial + age * condition + (1 | subid), d, family = "binomial")
+summary(semi_max_intrxn)
+
+no_int_intrxn <- glmer(correct ~ -1 + trial + age * condition + (1 | subid), d, family = "binomial")
+summary(no_int_intrxn)
+
+anova(semi_max_intrxn, no_int_intrxn)
 ```
+
+These models are effectively equivalent, and running an ANOVA to compare models that are not nested leads to uninterpretable results.
