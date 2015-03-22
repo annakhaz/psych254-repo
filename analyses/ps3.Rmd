@@ -423,7 +423,8 @@ HINT: make sure that you consider which random effects are appropriate. Consider
 
 
 ```{r}
-max_rs <- glmer(correct ~ subid * age.group * trial * condition * (condition + trial + age.group | subid), d, family = "binomial")
+#max_rs <- glmer(correct ~ subid * age.group * trial * condition * (condition + trial + age.group | subid), d, family = "binomial")
+# error: number of obs is less than the number of random effects
 
 submax_rs <- glmer(correct ~ age.group + trial + condition + (trial | subid), d, family = "binomial")
 summary(submax_rs)
